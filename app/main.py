@@ -3,6 +3,7 @@ from app.trend_bias import get_30m_bias, get_15m_state
 from app.trigger_engine import get_trigger
 from app.risk import build_trade_plan
 from app.trade_manager import manage_open_trade
+from app.backtest import run_backtest, summarize_backtest
 
 from app.indicators import (
     ema,
@@ -276,6 +277,20 @@ def main() -> None:
         print(f"Action: {management_result['action']}")
         print(f"Reason: {management_result['reason']}")
         print(f"New Stop: {management_result['new_stop']}")
+
+        trades_df = run_backtest(df)
+    summary = summarize_backtest(trades_df)
+
+    print("\n=== BACKTEST SUMMARY ===")
+    print(f"Total Trades: {summary['total_trades']}")
+    print(f"Closed Trades: {summary['closed_trades']}")
+    print(f"Trades With Partial Taken: {summary['partials']}")
+
+    print("\n=== BACKTEST TRADES ===")
+    if trades_df.empty:
+        print("No trades generated.")
+    else:
+        print(trades_df.to_string(index=False))
 
 
 if __name__ == "__main__":
