@@ -18,6 +18,7 @@ from app.signals import generate_signal
 from app.trade_manager import manage_open_trade
 from app.trend_bias import get_15m_state, get_30m_bias
 from app.trigger_engine import get_trigger
+from app.performance import calculate_trade_pnl, summarize_performance
 
 
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
@@ -202,6 +203,23 @@ def main() -> None:
         print("No trades generated.")
     else:
         print(trades_df.to_string(index=False))
+
+        closed_df = calculate_trade_pnl(trades_df)
+    performance = summarize_performance(closed_df)
+
+    print("\n=== PERFORMANCE METRICS ===")
+    print(f"Closed Trades: {performance['total_trades']}")
+    print(f"Win Rate: {performance['win_rate']}%")
+    print(f"Average P&L: {performance['avg_pnl']}")
+    print(f"Average R: {performance['avg_r']}")
+    print(f"Total P&L: {performance['total_pnl']}")
+    print(f"Profit Factor: {performance['profit_factor']}")
+
+    print("\n=== CLOSED TRADE METRICS ===")
+    if closed_df.empty:
+        print("No closed trades.")
+    else:
+        print(closed_df.to_string(index=False))
 
 
 if __name__ == "__main__":
