@@ -7,9 +7,18 @@ def ema(series: pd.Series, period: int) -> pd.Series:
 
 
 def vwap(df: pd.DataFrame) -> pd.Series:
-    typical_price = (df["high"] + df["low"] + df["close"]) / 3
-    cumulative_tpv = (typical_price * df["volume"]).cumsum()
-    cumulative_volume = df["volume"].cumsum()
+    temp = df.copy()
+
+    if "datetime" not in temp.columns:
+        raise KeyError("DataFrame must contain a 'datetime' column for VWAP calculation.")
+
+    temp["session_date"] = pd.to_datetime(temp["datetime"]).dt.date
+    typical_price = (temp["high"] + temp["low"] + temp["close"]) / 3
+    tpv = typical_price * temp["volume"]
+
+    cumulative_tpv = tpv.groupby(temp["session_date"]).cumsum()
+    cumulative_volume = temp["volume"].groupby(temp["session_date"]).cumsum()
+
     return cumulative_tpv / cumulative_volume
 
 
