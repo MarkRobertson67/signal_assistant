@@ -4,6 +4,7 @@ from app.trigger_engine import get_trigger
 from app.risk import build_trade_plan
 from app.trade_manager import manage_open_trade
 from app.backtest import run_backtest, summarize_backtest
+from app.data_loader import load_yfinance_data
 
 from app.indicators import (
     ema,
@@ -18,126 +19,126 @@ from app.indicators import (
 )
 from app.signals import generate_signal
 
-
-def build_sample_data() -> pd.DataFrame:
-    data = {
-        "datetime": pd.date_range("2026-04-03 09:30", periods=20, freq="3min"),
-        "open": [
-            100.0,
-            100.2,
-            100.4,
-            100.3,
-            100.6,
-            100.9,
-            101.1,
-            101.0,
-            101.3,
-            101.5,
-            101.2,
-            101.0,
-            100.8,
-            100.7,
-            100.5,
-            100.3,
-            100.4,
-            100.6,
-            100.9,
-            101.1,
-        ],
-        "high": [
-            100.3,
-            100.5,
-            100.6,
-            100.7,
-            101.0,
-            101.2,
-            101.3,
-            101.4,
-            101.6,
-            101.7,
-            101.3,
-            101.1,
-            100.9,
-            100.8,
-            100.6,
-            100.5,
-            100.7,
-            101.0,
-            101.2,
-            101.4,
-        ],
-        "low": [
-            99.9,
-            100.1,
-            100.2,
-            100.2,
-            100.5,
-            100.8,
-            100.9,
-            100.9,
-            101.1,
-            101.1,
-            100.9,
-            100.7,
-            100.6,
-            100.4,
-            100.2,
-            100.1,
-            100.2,
-            100.5,
-            100.8,
-            101.0,
-        ],
-        "close": [
-            100.2,
-            100.4,
-            100.3,
-            100.6,
-            100.9,
-            101.1,
-            101.0,
-            101.3,
-            101.5,
-            101.2,
-            101.0,
-            100.8,
-            100.7,
-            100.5,
-            100.3,
-            100.4,
-            100.6,
-            100.9,
-            101.1,
-            101.3,
-        ],
-        "volume": [
-            1200,
-            1500,
-            1400,
-            1700,
-            1800,
-            2200,
-            2100,
-            2300,
-            2500,
-            2400,
-            2600,
-            2000,
-            1900,
-            1800,
-            1700,
-            1600,
-            1750,
-            2100,
-            2300,
-            2400,
-        ],
-    }
-    return pd.DataFrame(data)
+# def build_sample_data() -> pd.DataFrame:
+#     data = {
+#         "datetime": pd.date_range("2026-04-03 09:30", periods=20, freq="3min"),
+#         "open": [
+#             100.0,
+#             100.2,
+#             100.4,
+#             100.3,
+#             100.6,
+#             100.9,
+#             101.1,
+#             101.0,
+#             101.3,
+#             101.5,
+#             101.2,
+#             101.0,
+#             100.8,
+#             100.7,
+#             100.5,
+#             100.3,
+#             100.4,
+#             100.6,
+#             100.9,
+#             101.1,
+#         ],
+#         "high": [
+#             100.3,
+#             100.5,
+#             100.6,
+#             100.7,
+#             101.0,
+#             101.2,
+#             101.3,
+#             101.4,
+#             101.6,
+#             101.7,
+#             101.3,
+#             101.1,
+#             100.9,
+#             100.8,
+#             100.6,
+#             100.5,
+#             100.7,
+#             101.0,
+#             101.2,
+#             101.4,
+#         ],
+#         "low": [
+#             99.9,
+#             100.1,
+#             100.2,
+#             100.2,
+#             100.5,
+#             100.8,
+#             100.9,
+#             100.9,
+#             101.1,
+#             101.1,
+#             100.9,
+#             100.7,
+#             100.6,
+#             100.4,
+#             100.2,
+#             100.1,
+#             100.2,
+#             100.5,
+#             100.8,
+#             101.0,
+#         ],
+#         "close": [
+#             100.2,
+#             100.4,
+#             100.3,
+#             100.6,
+#             100.9,
+#             101.1,
+#             101.0,
+#             101.3,
+#             101.5,
+#             101.2,
+#             101.0,
+#             100.8,
+#             100.7,
+#             100.5,
+#             100.3,
+#             100.4,
+#             100.6,
+#             100.9,
+#             101.1,
+#             101.3,
+#         ],
+#         "volume": [
+#             1200,
+#             1500,
+#             1400,
+#             1700,
+#             1800,
+#             2200,
+#             2100,
+#             2300,
+#             2500,
+#             2400,
+#             2600,
+#             2000,
+#             1900,
+#             1800,
+#             1700,
+#             1600,
+#             1750,
+#             2100,
+#             2300,
+#             2400,
+#         ],
+#     }
+#     return pd.DataFrame(data)
 
 
 def main() -> None:
-    df = build_sample_data()
+    #
+    df = load_yfinance_data("TQQQ", period="5d", interval="5m")
 
     df["ema_9"] = ema(df["close"], 9)
     df["vwap"] = vwap(df)
@@ -269,9 +270,10 @@ def main() -> None:
         print(f"RR to TP2: {trade_plan['rr_tp2']}")
         print(f"Reason: {trade_plan['reason']}")
 
-        print("\n=== TRADE MANAGEMENT ===")
+    print("\n=== TRADE MANAGEMENT ===")
     if trade_plan is None:
         print("No management action because no trade plan exists.")
+        trades_df = pd.DataFrame()
     else:
         management_result = manage_open_trade(df, trade_plan, partial_taken=False)
         print(f"Action: {management_result['action']}")
@@ -279,6 +281,7 @@ def main() -> None:
         print(f"New Stop: {management_result['new_stop']}")
 
         trades_df = run_backtest(df)
+
     summary = summarize_backtest(trades_df)
 
     print("\n=== BACKTEST SUMMARY ===")
