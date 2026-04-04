@@ -2,6 +2,7 @@ import pandas as pd
 from app.trend_bias import get_30m_bias, get_15m_state
 from app.trigger_engine import get_trigger
 from app.risk import build_trade_plan
+from app.trade_manager import manage_open_trade
 
 from app.indicators import (
     ema,
@@ -266,6 +267,15 @@ def main() -> None:
         print(f"RR to TP1: {trade_plan['rr_tp1']}")
         print(f"RR to TP2: {trade_plan['rr_tp2']}")
         print(f"Reason: {trade_plan['reason']}")
+
+        print("\n=== TRADE MANAGEMENT ===")
+    if trade_plan is None:
+        print("No management action because no trade plan exists.")
+    else:
+        management_result = manage_open_trade(df, trade_plan, partial_taken=False)
+        print(f"Action: {management_result['action']}")
+        print(f"Reason: {management_result['reason']}")
+        print(f"New Stop: {management_result['new_stop']}")
 
 
 if __name__ == "__main__":
