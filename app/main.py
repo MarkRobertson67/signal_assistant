@@ -13,12 +13,13 @@ from app.indicators import (
     swing_low,
     vwap,
 )
+from app.performance import calculate_trade_pnl, summarize_performance
+from app.plotting import plot_last_n_days
 from app.risk import build_trade_plan
 from app.signals import generate_signal
 from app.trade_manager import manage_open_trade
 from app.trend_bias import get_15m_state, get_30m_bias
 from app.trigger_engine import get_trigger
-from app.performance import calculate_trade_pnl, summarize_performance
 
 
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
@@ -46,13 +47,12 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main() -> None:
-    data = load_multi_timeframe_data("TQQQ", period="5d")
+    data = load_multi_timeframe_data("QQQ", period="5d")
 
     df_5m = add_indicators(data["5m"])
     df_15m = add_indicators(data["15m"])
     df_30m = add_indicators(data["30m"])
 
-    # Use 5m as the primary preview / signal / trigger dataframe for now
     df = df_5m
 
     print("\n=== DATASET INFO ===")
@@ -193,19 +193,70 @@ def main() -> None:
 
     summary = summarize_backtest(trades_df)
 
+    if trades_df.empty:
+        closed_df = pd.DataFrame()
+        performance = {
+            "total_trades": 0,
+            "win_rate": 0,
+            "avg_pnl": 0,
+            "avg_r": 0,
+            "total_pnl": 0,
+            "profit_factor": 0,
+        }
+    else:
+        closed_df = calculate_trade_pnl(trades_df)
+        performance = summarize_performance(closed_df)
+
     print("\n=== BACKTEST SUMMARY ===")
     print(f"Total Trades: {summary['total_trades']}")
     print(f"Closed Trades: {summary['closed_trades']}")
     print(f"Trades With Partial Taken: {summary['partials']}")
 
-    print("\n=== BACKTEST TRADES ===")
+    print("\n=== BACKTEST TRADES (LAST 10) ===")
     if trades_df.empty:
         print("No trades generated.")
     else:
-        print(trades_df.to_string(index=False))
+        print(trades_df.tail(10).to_string(index=False))
 
-        closed_df = calculate_trade_pnl(trades_df)
-    performance = summarize_performance(closed_df)
+    display_cols = [
+        "entry_time",
+        "direction",
+        "entry",
+        "stop",
+        "exit_time",
+        "exit_price",
+        "result",
+        "partial_taken",
+        "pnl",
+        "r_multiple",
+        "win",
+    ]
+
+    print("\n=== CLOSED TRADE METRICS (LAST 10) ===")
+    if closed_df.empty:
+        print("No closed trades.")
+    else:
+        print(closed_df[display_cols].tail(10).to_string(index=False))
+
+    print("\n=== TOP 5 WINNERS ===")
+    if closed_df.empty:
+        print("No closed trades.")
+    else:
+        print(
+            closed_df.sort_values("pnl", ascending=False)[display_cols]
+            .head(5)
+            .to_string(index=False)
+        )
+
+    print("\n=== TOP 5 LOSERS ===")
+    if closed_df.empty:
+        print("No closed trades.")
+    else:
+        print(
+            closed_df.sort_values("pnl", ascending=True)[display_cols]
+            .head(5)
+            .to_string(index=False)
+        )
 
     print("\n=== PERFORMANCE METRICS ===")
     print(f"Closed Trades: {performance['total_trades']}")
@@ -215,11 +266,10 @@ def main() -> None:
     print(f"Total P&L: {performance['total_pnl']}")
     print(f"Profit Factor: {performance['profit_factor']}")
 
-    print("\n=== CLOSED TRADE METRICS ===")
-    if closed_df.empty:
-        print("No closed trades.")
-    else:
-        print(closed_df.to_string(index=False))
+    # ---- Trade Inspector ----
+    if not trades_df.empty:
+        print("\nOpening daily trade charts for last 5 days...")
+        plot_last_n_days(df_5m, trades_df, num_days=5)
 
 
 if __name__ == "__main__":
