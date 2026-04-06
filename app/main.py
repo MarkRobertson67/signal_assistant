@@ -182,14 +182,13 @@ def main() -> None:
     print("\n=== TRADE MANAGEMENT ===")
     if trade_plan is None:
         print("No management action because no trade plan exists.")
-        trades_df = pd.DataFrame()
     else:
         management_result = manage_open_trade(df_5m, trade_plan, partial_taken=False)
         print(f"Action: {management_result['action']}")
         print(f"Reason: {management_result['reason']}")
         print(f"New Stop: {management_result['new_stop']}")
 
-        trades_df = run_backtest(df_5m)
+    trades_df = run_backtest(df_5m)
 
     summary = summarize_backtest(trades_df)
 
