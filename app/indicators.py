@@ -10,7 +10,9 @@ def vwap(df: pd.DataFrame) -> pd.Series:
     temp = df.copy()
 
     if "datetime" not in temp.columns:
-        raise KeyError("DataFrame must contain a 'datetime' column for VWAP calculation.")
+        raise KeyError(
+            "DataFrame must contain a 'datetime' column for VWAP calculation."
+        )
 
     temp["session_date"] = pd.to_datetime(temp["datetime"]).dt.date
     typical_price = (temp["high"] + temp["low"] + temp["close"]) / 3
@@ -27,9 +29,7 @@ def atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
     high_close = np.abs(df["high"] - df["close"].shift(1))
     low_close = np.abs(df["low"] - df["close"].shift(1))
 
-    true_range = pd.concat(
-        [high_low, high_close, low_close], axis=1
-    ).max(axis=1)
+    true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
 
     return true_range.rolling(window=period).mean()
 
@@ -62,10 +62,7 @@ def stochastic(df: pd.DataFrame, k_period: int = 14, d_period: int = 3) -> pd.Da
     percent_k = 100 * ((df["close"] - lowest_low) / denominator)
     percent_d = percent_k.rolling(window=d_period).mean()
 
-    return pd.DataFrame({
-        "%K": percent_k,
-        "%D": percent_d
-    })
+    return pd.DataFrame({"%K": percent_k, "%D": percent_d})
 
 
 def swing_high(df: pd.DataFrame, lookback: int = 3) -> pd.Series:
@@ -77,16 +74,70 @@ def swing_low(df: pd.DataFrame, lookback: int = 3) -> pd.Series:
 
 
 def obv_modified(
-    df: pd.DataFrame,
-    fast_period: int = 7,
-    signal_period: int = 10
+    df: pd.DataFrame, fast_period: int = 7, signal_period: int = 10
 ) -> pd.DataFrame:
     raw_obv = obv(df)
 
     obvm = raw_obv.ewm(span=fast_period, adjust=False).mean()
     signal = obvm.ewm(span=signal_period, adjust=False).mean()
 
-    return pd.DataFrame({
-        "obvm": obvm,
-        "obvm_signal": signal
-    })
+    return pd.DataFrame({"obvm": obvm, "obvm_signal": signal})
+
+
+def parabolic_sar(
+    df: pd.DataFrame,
+    step: float = 0.02,
+    max_step: float = 0.2,
+) -> pd.Series:
+    if df.empty:
+        return pd.Series(dtype=float)
+
+    high = df["high"].to_numpy()
+    low = df["low"].to_numpy()
+
+    psar = np.zeros(len(df))
+    bull = True
+    af = step
+    ep = high[0]
+    psar[0] = low[0]
+
+    for i in range(1, len(df)):
+        prev_psar = psar[i - 1]
+
+        if bull:
+            psar[i] = prev_psar + af * (ep - prev_psar)
+
+            if i >= 2:
+                psar[i] = min(psar[i], low[i - 1], low[i - 2])
+            else:
+                psar[i] = min(psar[i], low[i - 1])
+
+            if low[i] < psar[i]:
+                bull = False
+                psar[i] = ep
+                ep = low[i]
+                af = step
+            else:
+                if high[i] > ep:
+                    ep = high[i]
+                    af = min(af + step, max_step)
+
+        else:
+            psar[i] = prev_psar + af * (ep - prev_psar)
+
+            if i >= 2:
+                psar[i] = max(psar[i], high[i - 1], high[i - 2])
+            else:
+                psar[i] = max(psar[i], high[i - 1])
+
+            if high[i] > psar[i]:
+                bull = True
+                psar[i] = ep
+                ep = high[i]
+                af = step
+            else:
+                if low[i] < ep:
+                    ep = low[i]
+                    af = min(af + step, max_step)
+
+    return pd.Series(psar, index=df.index, name="psar")

@@ -12,6 +12,7 @@ from app.indicators import (
     swing_high,
     swing_low,
     vwap,
+    parabolic_sar,
 )
 from app.performance import calculate_trade_pnl, summarize_performance
 from app.plotting import plot_last_n_days
@@ -42,12 +43,13 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
     df["swing_high"] = swing_high(df)
     df["swing_low"] = swing_low(df)
+    df["psar"] = parabolic_sar(df)
 
     return df
 
 
 def main() -> None:
-    data = load_multi_timeframe_data("QQQ", period="5d")
+    data = load_multi_timeframe_data("QQQ", period="10d")
 
     df_5m = add_indicators(data["5m"])
     df_15m = add_indicators(data["15m"])

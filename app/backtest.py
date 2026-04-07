@@ -7,9 +7,9 @@ from app.trade_manager import manage_open_trade
 
 NY_TZ = "America/New_York"
 ENTRY_START = "09:35"
-ENTRY_END = "15:30"
+ENTRY_END = "15:45"
 FORCED_EXIT = "15:55"
-COOLDOWN_MINUTES = 15
+COOLDOWN_MINUTES = 5
 
 
 def _to_ny_timestamp(value) -> pd.Timestamp:

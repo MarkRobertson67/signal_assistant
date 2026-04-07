@@ -91,6 +91,15 @@ def plot_day_trades(
     ax_price.plot(day_df["datetime_ny"], day_df["ema_9"], label="EMA9")
     ax_price.plot(day_df["datetime_ny"], day_df["vwap"], label="VWAP")
 
+    if "psar" in day_df.columns:
+        ax_price.scatter(
+            day_df["datetime_ny"],
+            day_df["psar"],
+            s=14,
+            label="PSAR",
+            zorder=4,
+        )
+
     entry_label_added = False
     exit_label_added = False
 
@@ -166,7 +175,7 @@ def plot_day_trades(
         ax_obvm.axvspan(regular_close, session_close, alpha=0.10)
         ax_stoch.axvspan(regular_close, session_close, alpha=0.10)
 
-        # ---------- X-AXIS FORMATTING ----------
+    # ---------- X-AXIS FORMATTING ----------
     locator = mdates.HourLocator(interval=1, tz=day_df["datetime_ny"].dt.tz)
     formatter = mdates.DateFormatter("%H:%M", tz=day_df["datetime_ny"].dt.tz)
 
@@ -177,7 +186,7 @@ def plot_day_trades(
     for ax in axes:
         ax.set_xlim(session_open, session_close)
 
-        fig.autofmt_xdate()
+    fig.autofmt_xdate()
 
     plt.tight_layout()
     plt.show()
