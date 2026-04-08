@@ -49,7 +49,7 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main() -> None:
-    data = load_multi_timeframe_data("QQQ", period="60d")
+    data = load_multi_timeframe_data("QQQ")
 
     df_5m = add_indicators(data["5m"])
     df_15m = add_indicators(data["15m"])

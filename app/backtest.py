@@ -11,91 +11,37 @@ ENTRY_END = "15:45"
 FORCED_EXIT = "15:55"
 COOLDOWN_MINUTES = 30
 
-REGULAR_OPEN = "09:30"
-MIN_FIRST_BAR_VOL_PCT = 0.80  # trade only if first bar volume >= 80% of prior average
-
-
-def _to_ny_timestamp(value) -> pd.Timestamp:
-    ts = pd.to_datetime(value)
-    if ts.tzinfo is None:
-        ts = ts.tz_localize("UTC")
-    return ts.tz_convert(NY_TZ)
-
-
-def _build_daily_first_bar_filter(
-    df: pd.DataFrame,
-    regular_open: str = REGULAR_OPEN,
-    min_pct: float = MIN_FIRST_BAR_VOL_PCT,
-) -> dict:
-    """
-    Build a per-day allow/skip map based on the first regular-session bar volume.
-
-    Uses PRIOR days only to avoid look-ahead bias.
-    """
-    temp = df.copy()
-    temp["datetime"] = pd.to_datetime(temp["datetime"], utc=True)
-    temp["datetime_ny"] = temp["datetime"].dt.tz_convert(NY_TZ)
-    temp["ny_date"] = temp["datetime_ny"].dt.date
-    temp["ny_time"] = temp["datetime_ny"].dt.time
-
-    regular_open_time = pd.Timestamp(regular_open).time()
-
-    first_bar_rows = temp[temp["ny_time"] == regular_open_time].copy()
-    first_bar_rows = first_bar_rows.sort_values("datetime_ny")
-
-    day_filter = {}
-    prior_volumes = []
-
-    for _, row in first_bar_rows.iterrows():
-        trade_date = row["ny_date"]
-        first_bar_volume = pd.to_numeric(row["volume"], errors="coerce")
-
-        if pd.isna(first_bar_volume):
-            day_filter[trade_date] = False
-            continue
-
-        # No prior history yet -> allow the day
-        if len(prior_volumes) == 0:
-            day_filter[trade_date] = True
-        else:
-            prior_avg = sum(prior_volumes) / len(prior_volumes)
-            threshold = prior_avg * min_pct
-            day_filter[trade_date] = first_bar_volume >= threshold
-
-        prior_volumes.append(float(first_bar_volume))
-
-    return day_filter
-
 
 def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame()
+
     trades = []
     in_trade = False
     partial_taken = False
     trade_plan = None
-    entry_index = None
-    last_exit_time = None
+    last_exit_time_ny = None
 
     entry_start_time = pd.Timestamp(ENTRY_START).time()
     entry_end_time = pd.Timestamp(ENTRY_END).time()
     forced_exit_time = pd.Timestamp(FORCED_EXIT).time()
 
-    # Build day-level first-bar volume filter once
-    day_allowed_map = _build_daily_first_bar_filter(df)
+    # Precompute NY timestamps once for speed
+    datetimes_utc = pd.to_datetime(df["datetime"], utc=True)
+    datetimes_ny = datetimes_utc.dt.tz_convert(NY_TZ)
 
-    for i in range(15, len(df)):
-        current_df = df.iloc[: i + 1].copy()
-        latest = current_df.iloc[-1]
+    n_rows = len(df)
 
-        current_dt = _to_ny_timestamp(latest["datetime"])
-        current_time = current_dt.time()
-        current_date = current_dt.date()
+    for i in range(15, n_rows):
+        latest = df.iloc[i]
+        current_df = df.iloc[: i + 1]  # no .copy() here
 
-        # Default to allow if the day is missing from the map
-        day_is_allowed = day_allowed_map.get(current_date, True)
+        current_dt_ny = datetimes_ny.iloc[i]
+        current_time_ny = current_dt_ny.time()
 
         if in_trade:
             # Force-flat rule at 15:55 NY time
-            if current_time >= forced_exit_time:
+            if current_time_ny >= forced_exit_time:
                 current_trade = trades[-1]
                 current_trade["exit_time"] = latest["datetime"]
                 current_trade["exit_price"] = latest["close"]
@@ -104,12 +50,13 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
                 in_trade = False
                 partial_taken = False
                 trade_plan = None
-                entry_index = None
-                last_exit_time = current_dt
+                last_exit_time_ny = current_dt_ny
                 continue
 
             management = manage_open_trade(
-                current_df, trade_plan, partial_taken=partial_taken
+                current_df,
+                trade_plan,
+                partial_taken=partial_taken,
             )
             current_trade = trades[-1]
 
@@ -126,49 +73,35 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
                 in_trade = False
                 partial_taken = False
                 trade_plan = None
-                entry_index = None
-                last_exit_time = current_dt
+                last_exit_time_ny = current_dt_ny
 
-            elif management["action"] == "TIGHTEN_STOP":
-                trade_plan["stop"] = management["new_stop"]
-
-            elif management["action"] == "HOLD":
+            elif management["action"] in ["TIGHTEN_STOP", "HOLD"]:
                 trade_plan["stop"] = management["new_stop"]
 
             continue
 
-        # Skip the whole day if first regular-session bar volume is too weak
-        if not day_is_allowed:
+        # Entry window rule
+        if current_time_ny < entry_start_time or current_time_ny > entry_end_time:
             continue
 
-        # Entry time window rule
-        if current_time < entry_start_time or current_time > entry_end_time:
-            continue
-
-        # Cooldown after exit
-        if last_exit_time is not None:
-            minutes_since_exit = (current_dt - last_exit_time).total_seconds() / 60
+        # Cooldown rule
+        if last_exit_time_ny is not None:
+            minutes_since_exit = (
+                current_dt_ny - last_exit_time_ny
+            ).total_seconds() / 60.0
             if minutes_since_exit < COOLDOWN_MINUTES:
                 continue
 
         signal_result = generate_signal(current_df)
         trigger_result = get_trigger(current_df)
 
-        close_price = latest["close"]
-        psar_value = latest["psar"] if "psar" in latest.index else pd.NA
-
-        call_psar_ok = pd.notna(psar_value) and close_price > psar_value
-        put_psar_ok = pd.notna(psar_value) and close_price < psar_value
-
         if (
             signal_result["signal"] == "CALL"
             and trigger_result["trigger"] == "CALL_TRIGGER"
-            and call_psar_ok
         ):
             trade_plan = build_trade_plan(current_df, "CALL")
             in_trade = True
             partial_taken = False
-            entry_index = i
 
             trades.append(
                 {
@@ -188,12 +121,10 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
         elif (
             signal_result["signal"] == "PUT"
             and trigger_result["trigger"] == "PUT_TRIGGER"
-            and put_psar_ok
         ):
             trade_plan = build_trade_plan(current_df, "PUT")
             in_trade = True
             partial_taken = False
-            entry_index = i
 
             trades.append(
                 {
@@ -211,7 +142,7 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
             )
 
     # Safety close if sample ends while still in trade
-    if in_trade and len(trades) > 0 and trades[-1]["exit_time"] is None:
+    if in_trade and trades and trades[-1]["exit_time"] is None:
         final_bar = df.iloc[-1]
         trades[-1]["exit_time"] = final_bar["datetime"]
         trades[-1]["exit_price"] = final_bar["close"]

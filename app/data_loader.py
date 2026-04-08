@@ -3,7 +3,7 @@ from schwab_client.market_data import load_multi_timeframe_data as load_schwab_d
 
 def load_multi_timeframe_data(
     symbol: str,
-    period: str = "5d",
+    period: str = "364d",
     include_extended_hours: bool = True,
 ) -> dict:
     """
