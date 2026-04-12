@@ -15,33 +15,41 @@ def build_trade_plan(df: pd.DataFrame, direction: str) -> dict:
             "reason": "Not enough data",
         }
 
-    latest = df.iloc[-1]
+    latest = df.iloc[-1]      # confirmation / trigger candle
+    previous = df.iloc[-2]    # rejection candle
+
+    atr_value = latest.get("atr_14")
+
+    if pd.isna(atr_value) or atr_value is None:
+        return {
+            "direction": direction,
+            "entry": None,
+            "stop": None,
+            "tp1": None,
+            "tp2": None,
+            "risk_per_share": None,
+            "rr_tp1": None,
+            "rr_tp2": None,
+            "reason": "ATR not available",
+        }
+
+    entry = float(latest["close"])
 
     if direction == "CALL":
-        entry = latest["close"]
+        rejection_low = float(previous["low"])
 
-        swing_lows = df[df["swing_low"] == True]
-        if not swing_lows.empty:
-            stop = swing_lows.iloc[-1]["low"]
-        else:
-            stop = entry - latest["atr_14"]
-
+        stop = rejection_low - (0.1 * atr_value)
+        tp1 = entry + (0.5 * atr_value)
+        tp2 = entry + (1.0 * atr_value)
         risk_per_share = entry - stop
-        tp1 = entry + (risk_per_share * 1.5)
-        tp2 = entry + (risk_per_share * 2.0)
 
     elif direction == "PUT":
-        entry = latest["close"]
+        rejection_high = float(previous["high"])
 
-        swing_highs = df[df["swing_high"] == True]
-        if not swing_highs.empty:
-            stop = swing_highs.iloc[-1]["high"]
-        else:
-            stop = entry + latest["atr_14"]
-
+        stop = rejection_high + (0.1 * atr_value)
+        tp1 = entry - (0.5 * atr_value)
+        tp2 = entry - (1.0 * atr_value)
         risk_per_share = stop - entry
-        tp1 = entry - (risk_per_share * 1.5)
-        tp2 = entry - (risk_per_share * 2.0)
 
     else:
         return {
@@ -56,8 +64,21 @@ def build_trade_plan(df: pd.DataFrame, direction: str) -> dict:
             "reason": "Direction must be CALL or PUT",
         }
 
-    rr_tp1 = abs(tp1 - entry) / abs(risk_per_share) if risk_per_share != 0 else None
-    rr_tp2 = abs(tp2 - entry) / abs(risk_per_share) if risk_per_share != 0 else None
+    if risk_per_share <= 0:
+        return {
+            "direction": direction,
+            "entry": None,
+            "stop": None,
+            "tp1": None,
+            "tp2": None,
+            "risk_per_share": None,
+            "rr_tp1": None,
+            "rr_tp2": None,
+            "reason": "Invalid stop placement relative to entry",
+        }
+
+    rr_tp1 = abs(tp1 - entry) / abs(risk_per_share)
+    rr_tp2 = abs(tp2 - entry) / abs(risk_per_share)
 
     return {
         "direction": direction,
@@ -66,7 +87,7 @@ def build_trade_plan(df: pd.DataFrame, direction: str) -> dict:
         "tp1": round(tp1, 2),
         "tp2": round(tp2, 2),
         "risk_per_share": round(risk_per_share, 2),
-        "rr_tp1": round(rr_tp1, 2) if rr_tp1 is not None else None,
-        "rr_tp2": round(rr_tp2, 2) if rr_tp2 is not None else None,
-        "reason": "Trade plan built successfully",
+        "rr_tp1": round(rr_tp1, 2),
+        "rr_tp2": round(rr_tp2, 2),
+        "reason": "Trade plan built from rejection candle + ATR framework",
     }

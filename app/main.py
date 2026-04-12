@@ -25,7 +25,7 @@ from app.trigger_engine import get_trigger
 
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-
+    df["ema_5"] = ema(df["close"], 5)
     df["ema_9"] = ema(df["close"], 9)
     df["vwap"] = vwap(df)
     df["atr_14"] = atr(df, 14)

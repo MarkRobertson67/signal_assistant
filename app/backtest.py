@@ -6,7 +6,7 @@ from app.risk import build_trade_plan
 from app.trade_manager import manage_open_trade
 
 NY_TZ = "America/New_York"
-ENTRY_START = "09:35"
+ENTRY_START = "11:00"
 ENTRY_END = "15:45"
 FORCED_EXIT = "15:55"
 COOLDOWN_MINUTES = 30
@@ -34,13 +34,12 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
 
     for i in range(15, n_rows):
         latest = df.iloc[i]
-        current_df = df.iloc[: i + 1]  # no .copy() here
+        current_df = df.iloc[: i + 1]
 
         current_dt_ny = datetimes_ny.iloc[i]
         current_time_ny = current_dt_ny.time()
 
         if in_trade:
-            # Force-flat rule at 15:55 NY time
             if current_time_ny >= forced_exit_time:
                 current_trade = trades[-1]
                 current_trade["exit_time"] = latest["datetime"]
@@ -96,10 +95,14 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
         trigger_result = get_trigger(current_df)
 
         if (
-            signal_result["signal"] == "CALL"
+            signal_result["signal"] == "CALL_SETUP"
             and trigger_result["trigger"] == "CALL_TRIGGER"
         ):
             trade_plan = build_trade_plan(current_df, "CALL")
+
+            if trade_plan["entry"] is None:
+                continue
+
             in_trade = True
             partial_taken = False
 
@@ -119,10 +122,14 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
             )
 
         elif (
-            signal_result["signal"] == "PUT"
+            signal_result["signal"] == "PUT_SETUP"
             and trigger_result["trigger"] == "PUT_TRIGGER"
         ):
             trade_plan = build_trade_plan(current_df, "PUT")
+
+            if trade_plan["entry"] is None:
+                continue
+
             in_trade = True
             partial_taken = False
 

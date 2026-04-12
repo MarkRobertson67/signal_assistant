@@ -88,6 +88,7 @@ def plot_day_trades(
 
     # ---------- PRICE PANEL ----------
     ax_price.plot(day_df["datetime_ny"], day_df["close"], label="Close")
+    ax_price.plot(day_df["datetime_ny"], day_df["ema_5"], label="EMA5")
     ax_price.plot(day_df["datetime_ny"], day_df["ema_9"], label="EMA9")
     ax_price.plot(day_df["datetime_ny"], day_df["vwap"], label="VWAP")
 
